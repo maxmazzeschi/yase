@@ -12,7 +12,7 @@
      <style>
       /* Always set the map height explicitly to define the size of the div
        * element that contains the map. */
-        #map { height: 400px; width: 100%; }
+        #map { height: 800px; width: 100%; }
       /* Optional: Makes the sample page fill the window. */
       html, body {
         height: 100%;
@@ -23,12 +23,13 @@
     
   </head>
   <body>
+     
     <header>
       <h1>
         Yet Another Segments Explorer
       </h1>
     </header>
-    
+   
     <main>
       <div id="map"></div>
     </main>
@@ -37,6 +38,7 @@
     <script src="https://code.jquery.com/jquery-2.2.1.min.js"
             integrity="sha256-gvQgAFzTH6trSrAWoH1iPo9Xc96QxSZ3feW6kem+O00="
             crossorigin="anonymous"></script>
+    
     <script src="/client.js"></script>
     
    	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCobaxiTH8YAINPaShf7XWpkxcaNFCM7nQ&callback=initMap">    </script>
@@ -63,6 +65,8 @@
 		
 		infoWindow = new google.maps.InfoWindow;
 
+        setTimeout(function(){ infoWindow.close(); }, 10000);
+        
         // Try HTML5 geolocation.
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(function(position) {
@@ -197,7 +201,12 @@
 					points.forEach(function(p) 
 						{ trackPath.push(p); });
 					
-					var description = segment.name + '\n' + 'length: ' + segment.distance + '\n' + "grade: " + segment.avg_grade + '%\n';
+					var description = segment.name + '\n' + 'length: ';
+          if (segment.distance < 1000)
+            description += segment.distance + " m";
+          else
+            description += Math.round(segment.distance) / 1000 + " Km";
+          description += '\n'  + "grade: " + segment.avg_grade + '%\n';
 					var marker = new google.maps.Marker({
 						position: { lat: segment.start_latlng[0], lng: segment.start_latlng[1] },
 						map: map,
