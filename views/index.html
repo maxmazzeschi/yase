@@ -181,7 +181,7 @@
 				success: function (result,status,xhr)
 				  {
 				  try {
-				  console.log(result);
+				  //console.log(result);
 				  var segments = result["segments"];
 				  var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 				  var labelIndex = 0;
@@ -201,7 +201,7 @@
 					points.forEach(function(p) 
 						{ trackPath.push(p); });
 					
-					var description = segment.name + '\n' + 'length: ';
+					var description = segment.id + '\n' + segment.name + '\n' + 'length: ';
           if (segment.distance < 1000)
             description += segment.distance + " m";
           else
