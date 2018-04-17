@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>YASE</title>
+    <meta name="description" content="yet another segments explorer">
+    <link id="favicon" rel="icon" href="https://glitch.com/edit/favicon-app.ico" type="image/x-icon">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/style.css">
+    
+    <script src="https://www.google.com/jsapi"></script>
+    
+     <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+        #map { height: 800px; width: 100%; }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    
+  </head>
+  <body>
+     
+    <header>
+      <h1>
+        Yet Another Segments Explorer
+      </h1>
+    </header>
+   
+    <main>
+      <div id="map"></div>
+       <div id="elevation_chart"></div>
+    </main>
+
+    <!-- Your web-app is https, so your scripts need to be too -->
+    <script src="https://code.jquery.com/jquery-2.2.1.min.js"
+            integrity="sha256-gvQgAFzTH6trSrAWoH1iPo9Xc96QxSZ3feW6kem+O00="
+            crossorigin="anonymous"></script>
+    
+    <script src="/client.js"></script>
+    
+   	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCobaxiTH8YAINPaShf7XWpkxcaNFCM7nQ&callback=initMap">    </script>
+  
+    <script>
+      var map;
+      
+       // Create an ElevationService.
+      var elevator;
+
+	    var rectangle;
+	    var p0 = null;
+	    var p1 = null;
+	  
+  	  var m0 = null;
+	    var mapObjectsToHousekeep = [];
+      
+        // Load the Visualization API and the columnchart package.
+      google.load('visualization', '1', {packages: ['columnchart']});
+      
+      function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 14,
+		  mapTypeControl: true,
+          center: {lat: 41.9028, lng: 12.4964}  // Rome
+        });
+        
+        // Add a listener for the click event
+        map.addListener('click', onClick);
+		
+        elevator = new google.maps.ElevationService;
+        
+		infoWindow = new google.maps.InfoWindow;
+
+        setTimeout(function(){ infoWindow.close(); }, 10000);
+        
+        // Try HTML5 geolocation.
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function(position) {
+            var pos = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            };
+
+            infoWindow.setPosition(pos);
+            infoWindow.setContent('Location found.');
+            infoWindow.open(map);
+            map.setCenter(pos);
+          }, function() {
+            handleLocationError(true, infoWindow, map.getCenter());
+          });
+        } else {
+          // Browser doesn't support Geolocation
+          handleLocationError(false, infoWindow, map.getCenter());
+        }
+      }
+
+      function handleLocationError(browserHasGeolocation, infoWindow, pos) {
+        infoWindow.setPosition(pos);
+        infoWindow.setContent(browserHasGeolocation ?
+                              'Error: The Geolocation service failed.' :
+                              'Error: Your browser doesn\'t support geolocation.');
+        infoWindow.open(map);
+      }
+
+      // Handles click events on a map, and adds a new point to the Polyline.
+      function onClick(event) {
+	    if (p1 != null)
+	      {
+		  if (confirm("clear ?"))
+		    {
+			mapObjectsToHousekeep.forEach(function(item) { item.setMap(null); });
+			p0 = null;
+			p1 = null;
+			return;
+			}
+		  else
+		    {
+			return;
+			}
+		  }
+        if (p0 == null)
+		{
+		p0 = event.latLng;
+		m0 = new google.maps.Marker({
+					position: { lat: p0.lat(), lng: p0.lng() },
+					map: map,
+					title: "V0",
+					label: "V0"
+						});
+		}
+		else
+		{
+		m0.setMap(null);
+		p1 = event.latLng;
+		
+		if (p1.lat() < p0.lat())
+		{
+		var tmp = p0.lat();
+		p0 = new google.maps.LatLng(p1.lat(), p0.lng());
+		p1 = new google.maps.LatLng(tmp, p1.lng());
+		}
+		
+		if (p1.lng() < p0.lng())
+		{
+		var tmp = p0.lng();
+		p0 = new google.maps.LatLng(p0.lat(), p1.lng());
+		p1 = new google.maps.LatLng(p1.lat(), tmp);
+		}
+	
+		rectangle = new google.maps.Rectangle( {
+			 strokeColor: '#FF0000',
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+//          fillColor: '#FF0000',
+         fillOpacity: 0.0,
+		  bounds : { south:p0.lat(), west:p0.lng(), north:p1.lat(), east:p1.lng() }
+			});
+			
+		rectangle.setMap(map);
+		mapObjectsToHousekeep.push(rectangle);
+		loadTracks();
+
+		}     
+      }
+      
+      // Takes an array of ElevationResult objects, draws the path on the map
+      // and plots the elevation profile on a Visualization API ColumnChart.
+      function plotElevation(elevations, status) {
+        var chartDiv = document.getElementById('elevation_chart');
+        if (status !== 'OK') {
+          // Show the error code inside the chartDiv.
+          chartDiv.innerHTML = 'Cannot show elevation: request failed because ' +
+              status;
+          return;
+        }
+        // Create a new chart in the elevation_chart DIV.
+        var chart = new google.visualization.ColumnChart(chartDiv);
+
+        // Extract the data from which to populate the chart.
+        // Because the samples are equidistant, the 'Sample'
+        // column here does double duty as distance along the
+        // X axis.
+        var data = new google.visualization.DataTable();
+        data.addColumn('string', 'Sample');
+        data.addColumn('number', 'Elevation');
+        for (var i = 0; i < elevations.length; i++) {
+          data.addRow(['', elevations[i].elevation]);
+        }
+
+        // Draw the chart using the data within its DIV.
+        chart.draw(data, {
+          height: 150,
+          legend: 'none',
+          titleY: 'Elevation (m)'
+        });
+      }
+    
+	function loadTracks() {
+        var myBounds = [];      
+		myBounds.push(p0.lat());
+		myBounds.push(p0.lng());
+		myBounds.push(p1.lat());
+		myBounds.push(p1.lng());
+	   
+	   // bounds are South West first, then North East.
+	var wsUrl = "https://www.strava.com/api/v3/segments/explore";
+	var accessToken = "80dafd33b40c2f5f04d5ce40a4ac3f1e9af1c57d";
+	var  headers = { Authorization: 'Bearer ' + accessToken };
+	
+	$.ajax(
+			{
+			    url: wsUrl,
+				data : { bounds: myBounds.toString(), 
+						 'activityType': "riding",
+						 min_cat : 0,
+						 max_cat : 5
+					   },
+				headers: headers,
+				success: function (result,status,xhr)
+				  {
+				  try {
+				  //console.log(result);
+				  var segments = result["segments"];
+				  var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+				  var labelIndex = 0;
+				  if (segments.length == 0)
+				    alert ("Sorry, no segments available");
+				  segments.forEach(function(segment) {
+					var points = google.maps.geometry.encoding.decodePath(segment.points);
+					var track;
+					track = new google.maps.Polyline({
+						strokeColor: '#ff0000',
+						strokeOpacity: 1.0,
+						strokeWeight: 2
+						});
+					track.setMap(map);
+					mapObjectsToHousekeep.push(track);
+					var trackPath = track.getPath();
+					points.forEach(function(p) 
+						{ trackPath.push(p); });
+					
+					var description = segment.name + '\n' + 'length: ';
+          if (segment.distance < 1000)
+            description += segment.distance + " m";
+          else
+            description += Math.round(segment.distance) / 1000 + " Km";
+          description += '\n'  + "grade: " + segment.avg_grade + '%\n';
+					var marker = new google.maps.Marker({
+						position: { lat: segment.start_latlng[0], lng: segment.start_latlng[1] },
+						map: map,
+						title: description,
+						label: labels[labelIndex++ % labels.length]
+							});
+					var infoWindow = new google.maps.InfoWindow( {
+						content: description });
+						
+					marker.addListener('click', function (event) {
+						infoWindow.open(marker.get('map'), marker);
+            console.log(typeof(trackPath));
+            elevator.getElevationAlongPath({
+          'path': track.getPath().getArray(),
+          'samples': 256
+        }, plotElevation);
+            
+					mapObjectsToHousekeep.push(infoWindow);
+					});
+				    mapObjectsToHousekeep.push(marker);
+				  });
+				  } catch (err)
+				      {
+					  alert (err.message);
+					  }
+					},
+				error: function(xhr,status,error)
+				{
+				alert (status);
+				console.log(status);
+				console.log(error);
+				}			
+			}
+		  );
+}
+    </script>
+    
+  </body>
+  
+</html>
